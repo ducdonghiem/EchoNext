@@ -1,0 +1,5 @@
+# Ignore the data folder 1.1.0
+1.1.0/
+
+# Ignore all CSV files
+*.csv
