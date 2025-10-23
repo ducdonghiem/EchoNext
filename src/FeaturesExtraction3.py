@@ -95,9 +95,18 @@ class FeatureExtraction:
         rr = self._get_rr_data(ecg_signal)['rr_intervals']
         
         features = {}
+
+        # Absolute range from 250ms (240 BPM) to 1250ms (48 BPM)
+        min_rr_ms = 250
+        max_rr_ms = 1250
+        bin_width_ms = 8
         
         # Triangular Index: total number of RR intervals / height of histogram
-        hist, bin_edges = np.histogram(rr, bins=np.arange(rr.min(), rr.max() + 8, 8))
+        # hist, bin_edges = np.histogram(rr, bins=np.arange(rr.min(), rr.max() + 8, 8))
+        hist, bin_edges = np.histogram(
+            rr, 
+            bins=np.arange(min_rr_ms, max_rr_ms + bin_width_ms, bin_width_ms)
+        )
         features['HRV_TriangularIndex'] = len(rr) / np.max(hist) if np.max(hist) > 0 else np.nan
         
         # TINN: Triangular Interpolation of NN interval histogram
@@ -115,6 +124,8 @@ class FeatureExtraction:
             features['HRV_TINN'] = (right - left) * 8  # bin width is 8ms
         else:
             # print("Insufficient histogram bins for TINN calculation.")
+            print("TOO BAD TINN", len(hist))
+            print("rr ", rr)
             features['HRV_TINN'] = np.nan
         
         # print(features['HRV_TINN'])
@@ -244,18 +255,42 @@ class FeatureExtraction:
         apen_result = nk.entropy_approximate(rr, dimension=2, tolerance=0.2 * np.std(rr))
         features['HRV_ApEn'] = apen_result[0] if isinstance(apen_result, tuple) else apen_result
         
-        # Detrended Fluctuation Analysis (DFA) - short-term scaling exponent
-        # Scale must be adjusted based on RR interval length
-        max_scale = len(rr) // 4  # Conservative: at least 4 windows
-        if max_scale >= 4:
-            scale = [4, min(16, max_scale)]
-            dfa_result = nk.fractal_dfa(rr, scale=scale)
-            if isinstance(dfa_result, tuple):
-                features['HRV_DFA_alpha1'] = dfa_result[0]
-            else:
-                features['HRV_DFA_alpha1'] = dfa_result[0] if len(dfa_result) > 0 else np.nan
+        # For 10-second ECGs, we lower the threshold to 15 RR intervals, 
+        # which is the absolute minimum for calculating a stable short-term DFA exponent (alpha1).
+        # WARNING: Values derived from < 20 RRs should be treated with caution.
+        MIN_RRI_FOR_ALPHA1 = 15
+
+        if len(rr) >= MIN_RRI_FOR_ALPHA1: 
+            # Use Neurokit's default scale selection, but explicitly request alpha1 (short-term)
+            try:
+                # Default behavior calculates both alpha1 (short-term) and alpha2 (long-term).
+                # We explicitly set 'short' to True to ensure the alpha1 logic is focused on small scales.
+                # This is equivalent to setting max scale to ~16, which is appropriate here.
+                dfa_result = nk.fractal_dfa(rr, short=True) 
+                
+                # Determine the alpha1 result based on NeuroKit's output format:
+                if isinstance(dfa_result, tuple):
+                    # Typically returns (alpha1,) when short=True
+                    features['HRV_DFA_alpha1'] = dfa_result[0]
+                elif isinstance(dfa_result, dict) and 'DFA_Alpha1' in dfa_result:
+                    # If using a structure where keys are returned (less common for short=True)
+                    features['HRV_DFA_alpha1'] = dfa_result['DFA_Alpha1']
+                elif isinstance(dfa_result, np.ndarray) and len(dfa_result) > 0:
+                    # Handle array result
+                    features['HRV_DFA_alpha1'] = dfa_result[0]
+                else:
+                    print("Unexpected DFA result format.")
+                    features['HRV_DFA_alpha1'] = np.nan
+
+            except Exception as e:
+                print("DFA ERROR", e)
+                # Catch any internal errors from Neurokit for this specific calculation
+                features['HRV_DFA_alpha1'] = np.nan
+                # Optional: print(f"DFA calculation failed for this segment: {e}")
+
         else:
-            # Not enough data for DFA
+            # Not enough data for DFA, even with the lenient threshold
+            print("TOO BADD", len(rr))
             features['HRV_DFA_alpha1'] = np.nan
         
         # Correlation Dimension - extract only the numerical value
@@ -493,7 +528,7 @@ if __name__ == '__main__':
     fs = 250
     
     # Load ECG signal (Lead II)
-    ecg = np.load('1.1.0/EchoNext_train_waveforms.npy')[1, 0, :, 1]
+    ecg = np.load('1.1.0/EchoNext_train_waveforms.npy')[7, 0, :, 1]
     
     print(f"ECG signal loaded: {ecg.shape}")
     
