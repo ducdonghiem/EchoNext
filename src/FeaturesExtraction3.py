@@ -25,6 +25,14 @@ class FeatureExtraction:
     def __init__(self, sampling_rate=DEFAULT_FS):
         self.fs = sampling_rate
         self._cache = {}
+
+    # def get_feature_names(self):
+    #     """
+    #     Returns a list of all feature names extracted by this class.
+    #     """
+    #     dummy_signal = np.zeros(self.fs * 10)  # 10 seconds of dummy data
+    #     features = self.extract_all_features(dummy_signal)
+    #     return features.index.tolist()
     
     def _get_rr_data(self, ecg_signal):
         """
@@ -40,7 +48,8 @@ class FeatureExtraction:
         r_peaks_indices = r_peaks['ECG_R_Peaks']
         
         if len(r_peaks_indices) < 2:
-            raise ValueError(f"Insufficient R-peaks detected: {len(r_peaks_indices)}")
+            # raise ValueError(f"Insufficient R-peaks detected: {len(r_peaks_indices)}")
+            return len(r_peaks_indices)
         
         # RR intervals in milliseconds
         rr_intervals = np.diff(r_peaks_indices) / self.fs * 1000
@@ -124,8 +133,8 @@ class FeatureExtraction:
             features['HRV_TINN'] = (right - left) * 8  # bin width is 8ms
         else:
             # print("Insufficient histogram bins for TINN calculation.")
-            print("TOO BAD TINN", len(hist))
-            print("rr ", rr)
+            # print("TOO BAD TINN", len(hist))
+            # print("rr ", rr)
             features['HRV_TINN'] = np.nan
         
         # print(features['HRV_TINN'])
@@ -283,14 +292,14 @@ class FeatureExtraction:
                     features['HRV_DFA_alpha1'] = np.nan
 
             except Exception as e:
-                print("DFA ERROR", e)
+                # print("DFA ERROR", e)
                 # Catch any internal errors from Neurokit for this specific calculation
                 features['HRV_DFA_alpha1'] = np.nan
                 # Optional: print(f"DFA calculation failed for this segment: {e}")
 
         else:
             # Not enough data for DFA, even with the lenient threshold
-            print("TOO BADD", len(rr))
+            # print("TOO BADD", len(rr))
             features['HRV_DFA_alpha1'] = np.nan
         
         # Correlation Dimension - extract only the numerical value
@@ -498,6 +507,13 @@ class FeatureExtraction:
         Extract all feature categories and combine into a single Series.
         """
         self._cache = {}  # Clear cache
+
+        rr = self._get_rr_data(ecg_signal)
+
+        if isinstance(rr, int) and rr < 2:
+            print(f"WARNING: Insufficient R-peaks detected: {rr}. Returning NaN features.")
+            return None
+            
         
         # Extract each category
         cat1 = self.extract_hrv_time_domain(ecg_signal)

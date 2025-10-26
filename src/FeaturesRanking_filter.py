@@ -5,6 +5,8 @@ from sklearn.preprocessing import MinMaxScaler
 # New Imports for Explainability and Visualization
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.impute import SimpleImputer
+
 
 # Set plotting style for better readability
 sns.set_theme(style="whitegrid")
@@ -127,6 +129,35 @@ try:
     # 3. Load the pre-extracted features (X)
     print(f"Loading features from: {FEATURES_PATH}")
     X = pd.read_csv(FEATURES_PATH)
+
+    cols_to_drop = [
+        "HRV_DFA_alpha1",
+        "Morph_R_Amp_Mean",
+        "Morph_R_Amp_Std",
+        "Morph_T_R_Ratio",
+        "HRV_LF_HF_Ratio",
+        "HFn",
+        "LFn",
+    ]
+    # Keep only columns that actually exist to avoid KeyError
+    cols_to_drop_present = [c for c in cols_to_drop if c in X.columns]
+    if cols_to_drop_present:
+        print("Dropping columns:", cols_to_drop_present)
+        X = X.drop(columns=cols_to_drop_present)
+    else:
+        print("No specified high-missing columns found to drop.")
+
+    
+    imputer = SimpleImputer(strategy="median")
+    X_df = pd.DataFrame(imputer.fit_transform(X), columns=X.columns, index=X.index)
+    X = X_df
+
+    # remove these rows
+    r_rows = [69,73,435,596,841,1028,1715,2144,2226,3393,3703,4161,4261,7135,7739,11696,11933,12349,13528,13806,15558,15609,16110,16379,17357,17692,17967,18008,18724,19590,19656,19690,20112,20482,21009,21453,21689,21977,24520,25711,25776,26053,28270,28808,28897,28924,30113,30505,30630,30902,30971,31268,32013,32275,32632,33540,33906,34853,34905,35127,35353,36459,37090,37801,39115,40293,40632,41084,41252,43533,43576,45367,45747,46283,46860,48047,48463,49441,50626,52345,52692,53166,53686,54204,56437,56471,58298,58860,61065,61408,63118,64127,65950,67954,69575,70462,71894]
+    py_idx = sorted({r-1 for r in r_rows})
+    mask = ~X.index.isin(py_idx)
+    X = X.loc[mask].reset_index(drop=True)
+    y = y.loc[mask].reset_index(drop=True) if hasattr(y, "loc") else np.asarray(y)[mask]
     
     # 4. Alignment Check (Crucial)
     # Assuming that 'extracted_ecg_features_train.csv' is perfectly row-aligned 

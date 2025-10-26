@@ -1,13 +1,14 @@
-from FeaturesExtraction3 import FeatureExtraction
+from FeaturesExtraction4 import FeatureExtraction
 import numpy as np
 import pandas as pd
+# import csv
 
 def extract_features_train():
     fs = 250
     
     # take a sample of 20 ECGs from the training set
     
-    ecg_train = np.load('1.1.0/EchoNext_train_waveforms.npy')[0:10, :, :, :]
+    ecg_train = np.load('1.1.0/EchoNext_train_waveforms.npy')[:, :, :, :]
 
     # loop all N samples
     print(ecg_train.shape)
@@ -22,17 +23,36 @@ def extract_features_train():
         
         # Extract all features
         features = extractor.extract_all_features(ecg)
+
+        # # add a line of Nan to  if features could not be extracted
+        # if features is None:
+        #     with open('extracted_ecg_features_train.csv', 'r') as f:
+        #         reader = csv.reader(f)
+        #         first_row = next(reader)
+        #         num_cols = len(first_row)
+
+        #     # Step 2: Create a row of NaNs and append
+        #     nan_row = [np.nan] * num_cols
+        #     with open('extracted_ecg_features_train.csv', 'a', newline='') as f:
+        #         writer = csv.writer(f)
+        #         writer.writerow(nan_row)
+
+        #     # save the index to a file
+        #     with open('feature_extraction_warnings.txt', 'a') as f:
+        #         f.write(f"{i}\n")
+
+        #     continue
         
         # Save to CSV
         df = pd.DataFrame(features).transpose()
 
         # save each sample as a row in a CSV file
         if i == 0:
-            # df.to_csv('extracted_ecg_features_train.csv', mode='w', header=True, index=False)
-            df.to_csv('test.csv', mode='w', header=True, index=False)
+            df.to_csv('extracted_ecg_features_train.csv', mode='w', header=True, index=False)
+            # df.to_csv('test.csv', mode='w', header=True, index=False)
         else:
-            # df.to_csv('extracted_ecg_features_train.csv', mode='a', header=False, index=False)
-            df.to_csv('test.csv', mode='a', header=False, index=False)
+            df.to_csv('extracted_ecg_features_train.csv', mode='a', header=False, index=False)
+            # df.to_csv('test.csv', mode='a', header=False, index=False)
     
     
 if __name__ == "__main__":
